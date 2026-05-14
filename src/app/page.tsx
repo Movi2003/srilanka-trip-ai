@@ -1,9 +1,10 @@
-'use client';
-
 import Link from 'next/link';
-import { FaArrowRight, FaMapMarkedAlt, FaSmile, FaWifi, FaShareAlt, FaCommentAlt, FaPlus } from 'react-icons/fa';
+import { FaArrowRight, FaMapMarkedAlt, FaSmile, FaWifi, FaShareAlt, FaCommentAlt } from 'react-icons/fa';
+import { getServerSession } from "next-auth";
+import { authOptions } from "./api/auth/[...nextauth]/route";
+import { redirect } from "next/navigation";
 
-export default function Home() {
+export default async function Home() {
   return (
     <div className="min-h-screen bg-white text-gray-800 font-sans">
       {/* Hero Section */}
