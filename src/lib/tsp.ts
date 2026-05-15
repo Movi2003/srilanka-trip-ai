@@ -1,196 +1,158 @@
 // lib/tsp.ts
-import { getDistanceMatrix } from './google';
+import { getDestinationByName } from './data';
 
-// Assuming these types are defined in app/page.tsx or a shared types file
-// If not, move them to a types.ts file and import here
-type TravelMode = google.maps.TravelMode | 'TUKTUK';
-type RouteType = 'shortest' | 'longest' | 'attractions';
+export type TravelMode = 'DRIVING' | 'TRANSIT' | 'BICYCLING' | 'WALKING' | 'TUKTUK';
+export type RouteType = 'shortest' | 'longest' | 'attractions';
 
-type RouteResult = {
+export type RouteResult = {
   route: string[];
-  totalDistance: number;
-  segmentDistances: number[];
+  totalDistance: number; // km
+  travelTime: number; // hours
+  activityTime: number; // hours
+  totalDays: number;
+  comfort: number; // percentage
+  segmentDistances: number[]; // km
+  segmentTimes: number[]; // hours
 };
 
-// Mock / shared destination data (move to a separate file later if needed)
-const destinationsData: Record<string, { attractions: number }> = {
-  Colombo: { attractions: 15 },
-  Mirissa: { attractions: 6 },
-  Anuradhapura: { attractions: 11 },
-  Trincomalee: { attractions: 8 },
-  Kandy: { attractions: 12 },
-  Sigiriya: { attractions: 8 },
-  // Add others as needed
+// Travel mode average speeds in km/h
+const SPEEDS: Record<TravelMode, number> = {
+  DRIVING: 50,
+  TRANSIT: 40,
+  TUKTUK: 35,
+  BICYCLING: 15,
+  WALKING: 5,
 };
 
-// Convert Distance Matrix response to a distance matrix (km)
-function extractDistanceMatrix(
-  response: google.maps.DistanceMatrixResponse | null
-): number[][] {
-  if (!response) return [];
-
-  const matrix: number[][] = [];
-
-  response.rows.forEach((row) => {
-    const rowDist: number[] = [];
-    row.elements.forEach((element) => {
-      if (element.status === 'OK' && element.distance?.value !== undefined) {
-        rowDist.push(element.distance.value / 1000); // meters → km
-      } else {
-        rowDist.push(9999); // penalty for unreachable
-      }
-    });
-    matrix.push(rowDist);
-  });
-
-  return matrix;
+// Haversine distance in km
+export function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
 }
 
-// Nearest Neighbor TSP using real distances
-export async function nearestNeighbor(cities: string[]): Promise<string[]> {
-  if (cities.length === 0) return [];
-
-  try {
-    const response = await getDistanceMatrix(cities, cities);
-    if (!response) throw new Error('No response from Distance Matrix');
-
-    const distMatrix = extractDistanceMatrix(response);
-
-    const visited = new Set<number>();
-    const tour: number[] = [0]; // start at first city
-    visited.add(0);
-
-    let current = 0;
-
-    while (visited.size < cities.length) {
-      let nearest = -1;
-      let minDist = Infinity;
-
-      for (let i = 0; i < cities.length; i++) {
-        if (!visited.has(i)) {
-          const dist = distMatrix[current][i];
-          if (dist < minDist) {
-            minDist = dist;
-            nearest = i;
-          }
-        }
-      }
-
-      if (nearest === -1) break;
-
-      tour.push(nearest);
-      visited.add(nearest);
-      current = nearest;
-    }
-
-    tour.push(tour[0]); // close loop
-    return tour.map((index) => cities[index]);
-  } catch (err) {
-    console.error('TSP failed:', err);
-    return [...cities, cities[0]]; // fallback
-  }
+function calculateComfort(distance: number, mode: TravelMode): number {
+  let baseComfort = 100;
+  // Penalty for long distances based on mode
+  if (mode === 'WALKING' && distance > 5) baseComfort -= (distance - 5) * 5;
+  if (mode === 'BICYCLING' && distance > 30) baseComfort -= (distance - 30) * 2;
+  if (mode === 'TUKTUK' && distance > 100) baseComfort -= (distance - 100) * 0.5;
+  if (mode === 'TRANSIT' && distance > 200) baseComfort -= (distance - 200) * 0.2;
+  if (mode === 'DRIVING' && distance > 300) baseComfort -= (distance - 300) * 0.1;
+  return Math.max(0, Math.min(100, Math.round(baseComfort)));
 }
 
-// 2-Opt improvement – now takes cities parameter
-export function twoOpt(route: string[], cities: string[], distMatrix: number[][]): string[] {
-  let improved = [...route];
-  let better = true;
-
-  while (better) {
-    better = false;
-
-    for (let i = 1; i < improved.length - 2; i++) {
-      for (let j = i + 1; j < improved.length - 1; j++) {
-        const a = cities.indexOf(improved[i - 1]);
-        const b = cities.indexOf(improved[i]);
-        const c = cities.indexOf(improved[j]);
-        const d = cities.indexOf(improved[j + 1]);
-
-        if (a === -1 || b === -1 || c === -1 || d === -1) continue;
-
-        const before = distMatrix[a][b] + distMatrix[c][d];
-        const after = distMatrix[a][c] + distMatrix[b][d];
-
-        if (after < before) {
-          improved = [
-            ...improved.slice(0, i),
-            ...improved.slice(i, j + 1).reverse(),
-            ...improved.slice(j + 1),
-          ];
-          better = true;
-        }
-      }
-    }
-  }
-
-  return improved;
-}
-
-// Main exported function – single version, accepts mode & type
 export async function findBestRoute(
-  cities: string[],
-  mode: TravelMode = google.maps.TravelMode.DRIVING,
+  cityNames: string[],
+  mode: TravelMode = 'DRIVING',
   type: RouteType = 'shortest'
 ): Promise<RouteResult> {
-  let route = await nearestNeighbor(cities);
+  if (cityNames.length === 0) {
+    return { route: [], totalDistance: 0, travelTime: 0, activityTime: 0, totalDays: 0, comfort: 100, segmentDistances: [], segmentTimes: [] };
+  }
 
-  try {
-    // map our union to the actual Google Maps enum;
-    // treat the extra 'TUKTUK' option as DRIVING for the API
-    const apiMode: google.maps.TravelMode =
-      mode === 'TUKTUK' ? google.maps.TravelMode.DRIVING : mode;
+  // Pre-calculate distance matrix locally to avoid API limits and make it fast
+  const n = cityNames.length;
+  const distMatrix: number[][] = Array(n).fill(0).map(() => Array(n).fill(0));
+  
+  const cities = cityNames.map(name => getDestinationByName(name));
 
-    const response = await getDistanceMatrix(cities, cities, apiMode);
-    if (!response) {
-      return { route, totalDistance: 0, segmentDistances: [] };
-    }
-
-    let distMatrix = extractDistanceMatrix(response);
-
-    // Adjust matrix based on route type
-    if (type === 'longest') {
-      // Invert distances to maximize
-      distMatrix = distMatrix.map(row => row.map(d => (d > 0 ? -d : 0)));
-    } else if (type === 'attractions') {
-      // Prefer places with more attractions (lower "cost")
-      cities.forEach((city, i) => {
-        const attractions = destinationsData[city]?.attractions || 1;
-        distMatrix.forEach((row, j) => {
-          if (i !== j) row[j] /= attractions;
-        });
-      });
-    }
-
-    const improved = twoOpt(route, cities, distMatrix);
-    improved.push(improved[0]); // close loop
-
-    // Calculate total distance + per-segment distances
-    let totalDistance = 0;
-    const segmentDistances: number[] = [];
-
-    for (let i = 0; i < improved.length - 1; i++) {
-      const fromCity = improved[i];
-      const toCity = improved[i + 1];
-
-      const fromIndex = cities.indexOf(fromCity);
-      const toIndex = cities.indexOf(toCity);
-
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const dist = distMatrix[fromIndex][toIndex];
-        segmentDistances.push(dist);
-        totalDistance += dist;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (i === j) {
+        distMatrix[i][j] = 0;
       } else {
-        segmentDistances.push(0);
+        const c1 = cities[i];
+        const c2 = cities[j];
+        if (c1 && c2) {
+          distMatrix[i][j] = getHaversineDistance(c1.latitude, c1.longitude, c2.latitude, c2.longitude);
+          // Adjust matrix based on route type
+          if (type === 'longest') {
+            distMatrix[i][j] = -distMatrix[i][j]; // invert for longest
+          } else if (type === 'attractions') {
+            // divide distance by number of attractions in destination to prioritize it
+            distMatrix[i][j] = distMatrix[i][j] / Math.max(1, c2.attractions.length);
+          }
+        } else {
+          distMatrix[i][j] = 9999;
+        }
       }
     }
-
-    return {
-      route: improved,
-      totalDistance: Math.round(totalDistance),
-      segmentDistances,
-    };
-  } catch (err) {
-    console.error('2-Opt or distance calculation failed:', err);
-    return { route, totalDistance: 0, segmentDistances: [] };
   }
+
+  // Nearest Neighbor
+  const visited = new Set<number>();
+  const routeIdx: number[] = [0];
+  visited.add(0);
+
+  let current = 0;
+  while (visited.size < n) {
+    let nearest = -1;
+    let minDist = Infinity;
+    for (let i = 0; i < n; i++) {
+      if (!visited.has(i)) {
+        if (distMatrix[current][i] < minDist) {
+          minDist = distMatrix[current][i];
+          nearest = i;
+        }
+      }
+    }
+    if (nearest === -1) break;
+    routeIdx.push(nearest);
+    visited.add(nearest);
+    current = nearest;
+  }
+
+  // Close loop back to start
+  routeIdx.push(0);
+
+  // Re-calculate real totals using un-modified haversine distance
+  let totalDistance = 0;
+  let activityTime = 0;
+  const segmentDistances: number[] = [];
+  const segmentTimes: number[] = [];
+  const speed = SPEEDS[mode];
+
+  for (let i = 0; i < routeIdx.length - 1; i++) {
+    const fromIdx = routeIdx[i];
+    const toIdx = routeIdx[i+1];
+    const c1 = cities[fromIdx];
+    const c2 = cities[toIdx];
+    
+    let dist = 0;
+    if (c1 && c2) {
+      // Use standard haversine (not the modified matrix value)
+      dist = getHaversineDistance(c1.latitude, c1.longitude, c2.latitude, c2.longitude);
+      if (i === 0 || toIdx !== 0) { // Don't count start location's activity time twice
+        activityTime += c2.recommendedDuration;
+      }
+    }
+    
+    totalDistance += dist;
+    segmentDistances.push(dist);
+    segmentTimes.push(dist / speed);
+  }
+  
+  if (cities[0]) activityTime += cities[0].recommendedDuration; // add first location
+
+  const travelTime = totalDistance / speed;
+  const totalDays = Math.ceil((travelTime + activityTime) / 8); // Assume 8 hours of active travel/sightseeing per day
+  const comfort = calculateComfort(totalDistance, mode);
+
+  return {
+    route: routeIdx.map(idx => cityNames[idx]),
+    totalDistance: Math.round(totalDistance),
+    travelTime,
+    activityTime,
+    totalDays,
+    comfort,
+    segmentDistances,
+    segmentTimes,
+  };
 }
