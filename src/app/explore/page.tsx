@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import TripMap from '@/components/TripMap';
 import { getDestinationByName } from '@/lib/data';
 import { getWeatherForLocation } from '@/lib/weather';
+import { findBestRoute, RouteType } from '@/lib/tsp';
 import { FaBell, FaUserCircle, FaSearch, FaChartBar, FaSave, FaMapMarkerAlt, FaSun, FaLayerGroup, FaUsers, FaPlus, FaMinus, FaCrosshairs, FaShareAlt, FaStar } from 'react-icons/fa';
 
 function ExploreContent() {
@@ -15,14 +16,48 @@ function ExploreContent() {
   const [sharing, setSharing] = useState(false);
   
   const citiesParam = searchParams.get('cities');
-  const currentRoute = citiesParam ? citiesParam.split(',') : ['Colombo', 'Kandy', 'Sigiriya', 'Galle'];
+  const logicParam = searchParams.get('logic') as RouteType;
+  const initialCities = citiesParam ? citiesParam.split(',') : ['Colombo', 'Kandy', 'Sigiriya', 'Galle'];
   
+  const [currentRoute, setCurrentRoute] = useState<string[]>(initialCities);
+
+  useEffect(() => {
+    if (citiesParam && logicParam) {
+      const uniqueCities = Array.from(new Set(citiesParam.split(',')));
+      findBestRoute(uniqueCities, 'DRIVING', logicParam).then(res => {
+        if (res && res.route && res.route.length > 0) {
+          setCurrentRoute(res.route);
+        }
+      });
+    } else if (citiesParam) {
+      setCurrentRoute(citiesParam.split(','));
+    }
+  }, [citiesParam, logicParam]);
+
   const destinations = currentRoute.map(c => getDestinationByName(c)).filter(Boolean);
 
   const handleSaveTrip = async () => {
     setSaving(true);
-    // Simulate Supabase insert
-    await new Promise(r => setTimeout(r, 800));
+    
+    const tripData = {
+      title: `${currentRoute.length} Destinations Trip`,
+      rating: 9.0, // arbitrary
+      stops: currentRoute.length,
+      distance: currentRoute.length * 50, // arbitrary estimate
+      img: destinations[0]?.img || 'https://images.unsplash.com/photo-1574972173516-168a2bf1de66?q=80&w=800&auto=format&fit=crop',
+      route: currentRoute
+    };
+
+    try {
+      await fetch('/api/trips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tripData)
+      });
+    } catch (e) {
+      console.error('Failed to save trip', e);
+    }
+    
     router.push('/saved');
   };
 
@@ -47,8 +82,7 @@ function ExploreContent() {
           </nav>
         </div>
         <div className="flex items-center gap-6 text-gray-500">
-          <button className="hover:text-gray-900"><FaBell size={20} /></button>
-          <button className="hover:text-gray-900"><FaUserCircle size={24} /></button>
+          <button className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">Logout</button>
         </div>
       </header>
 
@@ -75,7 +109,7 @@ function ExploreContent() {
                   <FaShareAlt /> {sharing ? '...' : 'Share'}
                 </button>
               </div>
-              <Link href="/compare" className="w-full bg-white border-2 border-[#0f2e8a] text-[#0f2e8a] hover:bg-blue-50 font-semibold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+              <Link href={`/compare?cities=${currentRoute.join(',')}`} className="w-full bg-white border-2 border-[#0f2e8a] text-[#0f2e8a] hover:bg-blue-50 font-semibold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
                 <FaChartBar /> Compare Routes
               </Link>
             </div>

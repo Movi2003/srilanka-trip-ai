@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import TripMap from '@/components/TripMap';
 import { findBestRoute, TravelMode, RouteType, RouteResult } from '@/lib/tsp';
 import { destinationsList } from '@/lib/data';
 import { 
-  FaMagic, FaBell, FaUserCircle, FaCar, FaTrain, FaMotorcycle, 
+  FaMagic, FaCar, FaTrain, FaMotorcycle, 
   FaBicycle, FaWalking, FaMapMarkerAlt, FaSearch, FaTimes, FaPlus, FaMap, FaChevronDown, FaArrowRight,
-  FaClock, FaRoute, FaStar, FaInfoCircle
+  FaClock, FaRoute, FaStar, FaInfoCircle, FaChartBar
 } from 'react-icons/fa';
 
 export default function ClientTripPlanner() {
@@ -62,8 +61,7 @@ export default function ClientTripPlanner() {
           </nav>
         </div>
         <div className="flex items-center gap-6 text-gray-500">
-          <button className="hover:text-gray-900"><FaBell size={20} /></button>
-          <button className="hover:text-gray-900"><FaUserCircle size={24} /></button>
+          <button className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">Logout</button>
         </div>
       </header>
 
@@ -98,7 +96,10 @@ export default function ClientTripPlanner() {
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col text-sm">
               <button onClick={() => setLogic('shortest')} className={`px-4 py-3 text-left border-b border-gray-100 ${logic === 'shortest' ? 'bg-[#0f2e8a] text-white font-bold' : 'hover:bg-gray-50'}`}>Shortest Distance</button>
               <button onClick={() => setLogic('longest')} className={`px-4 py-3 text-left border-b border-gray-100 ${logic === 'longest' ? 'bg-[#0f2e8a] text-white font-bold' : 'hover:bg-gray-50'}`}>Scenic / Longest</button>
-              <button onClick={() => setLogic('attractions')} className={`px-4 py-3 text-left ${logic === 'attractions' ? 'bg-[#0f2e8a] text-white font-bold' : 'hover:bg-gray-50'}`}>Maximize Attractions</button>
+              <button onClick={() => setLogic('attractions')} className={`px-4 py-3 text-left border-b border-gray-100 ${logic === 'attractions' ? 'bg-[#0f2e8a] text-white font-bold' : 'hover:bg-gray-50'}`}>Maximize Attractions</button>
+              <a href={`/compare?cities=${selected.join(',')}`} className="px-4 py-3 text-center bg-gray-50 text-[#0f2e8a] hover:bg-gray-100 font-bold flex items-center justify-center gap-2">
+                <FaChartBar /> Compare Your Paths
+              </a>
             </div>
           </div>
 
@@ -249,15 +250,7 @@ export default function ClientTripPlanner() {
                 </div>
               )}
 
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-2 h-[500px] flex-shrink-0 mb-8">
-                {result ? (
-                  <TripMap places={result.route} routeOrder={result.route} />
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-500">
-                    Loading map...
-                  </div>
-                )}
-              </div>
+
 
               {result && (
                 <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">

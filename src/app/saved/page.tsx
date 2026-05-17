@@ -2,17 +2,33 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import TripMap from '@/components/TripMap';
 import { FaBell, FaUserCircle, FaSearch, FaFilter, FaPlus, FaTrash, FaMapMarkerAlt, FaRoute, FaCog, FaTrain, FaCar, FaWalking } from 'react-icons/fa';
 
 export default function SavedRoutes() {
   const [trips, setTrips] = useState<any[]>([]);
 
-  useEffect(() => {
+  const fetchTrips = () => {
     fetch('/api/trips')
       .then(res => res.json())
       .then(data => setTrips(data))
       .catch(console.error);
+  };
+
+  useEffect(() => {
+    fetchTrips();
   }, []);
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/trips?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchTrips();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans flex flex-col">
@@ -31,9 +47,7 @@ export default function SavedRoutes() {
             <FaSearch className="absolute left-3 top-2.5 text-gray-400" size={14} />
             <input type="text" placeholder="Search routes..." className="bg-gray-100 border-transparent rounded-full pl-9 pr-4 py-2 text-sm focus:bg-white focus:border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#0f2e8a]" />
           </div>
-          <button className="hover:text-gray-900"><FaBell size={20} /></button>
-          <button className="hover:text-gray-900"><FaCog size={20} /></button>
-          <button className="hover:text-gray-900"><FaUserCircle size={24} /></button>
+          <button className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">Logout</button>
         </div>
       </header>
 
@@ -57,10 +71,16 @@ export default function SavedRoutes() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {trips.map((trip, i) => (
             <div key={trip.id} className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col">
-              <div className="relative h-56">
-                <img src={trip.img} alt={trip.title} className="w-full h-full object-cover" />
-                <div className="absolute top-4 right-4 bg-white text-gray-900 text-sm font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                  {i === 0 ? <FaCar className="text-blue-500" /> : i === 1 ? <FaTrain className="text-green-500" /> : <FaWalking className="text-red-500" />} {trip.rating}
+              <div className="relative h-56 bg-gray-100">
+                {trip.route ? (
+                  <div className="absolute inset-0 z-0">
+                    <TripMap places={trip.route} routeOrder={trip.route} />
+                  </div>
+                ) : (
+                  <img src={trip.img} alt={trip.title} className="w-full h-full object-cover relative z-0" />
+                )}
+                <div className="absolute top-4 right-4 bg-white text-gray-900 text-sm font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm z-10">
+                  {i % 3 === 0 ? <FaCar className="text-blue-500" /> : i % 3 === 1 ? <FaTrain className="text-green-500" /> : <FaWalking className="text-red-500" />} {trip.rating}
                 </div>
               </div>
               <div className="p-6 flex-1 flex flex-col">
@@ -74,10 +94,10 @@ export default function SavedRoutes() {
                   </div>
                 </div>
                 <div className="mt-auto pt-6 border-t border-gray-100 flex items-center justify-between">
-                  <button className="text-gray-400 hover:text-red-500 transition-colors p-2">
+                  <button onClick={() => handleDelete(trip.id)} className="text-gray-400 hover:text-red-500 transition-colors p-2">
                     <FaTrash />
                   </button>
-                  <Link href={`/explore?tripId=${trip.id}`} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-6 py-2 rounded-lg text-sm font-bold transition-colors">
+                  <Link href={`/explore?cities=${trip.route?.join(',') || ''}`} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-6 py-2 rounded-lg text-sm font-bold transition-colors">
                     View Details
                   </Link>
                 </div>

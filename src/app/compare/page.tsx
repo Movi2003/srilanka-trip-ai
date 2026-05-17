@@ -1,9 +1,14 @@
 'use client';
 
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { FaBell, FaUserCircle, FaSearch, FaCar, FaWalking, FaStar, FaBrain, FaArrowRight, FaMapMarkerAlt, FaClock, FaRoute, FaMountain, FaLandmark, FaBolt } from 'react-icons/fa';
+import { useSearchParams } from 'next/navigation';
+import { FaSearch, FaCar, FaWalking, FaStar, FaBrain, FaArrowRight, FaMapMarkerAlt, FaClock, FaRoute, FaMountain, FaLandmark, FaBolt } from 'react-icons/fa';
 
-export default function CompareRoutes() {
+function CompareContent() {
+  const searchParams = useSearchParams();
+  const cities = searchParams.get('cities') || 'Colombo,Ella';
+
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans flex flex-col pb-32">
       {/* Top Navbar */}
@@ -17,8 +22,7 @@ export default function CompareRoutes() {
           </nav>
         </div>
         <div className="flex items-center gap-6 text-gray-500">
-          <button className="hover:text-gray-900"><FaBell size={20} /></button>
-          <button className="hover:text-gray-900"><FaUserCircle size={24} /></button>
+          <button className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">Logout</button>
         </div>
       </header>
 
@@ -65,7 +69,7 @@ export default function CompareRoutes() {
               </div>
 
               <div className="mt-auto">
-                <Link href="/explore" className="w-full bg-[#0f2e8a] hover:bg-blue-900 text-white font-bold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+                <Link href={`/explore?cities=${cities}&logic=shortest`} className="w-full bg-[#0f2e8a] hover:bg-blue-900 text-white font-bold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
                   Select This Route <FaArrowRight size={12} />
                 </Link>
               </div>
@@ -112,7 +116,7 @@ export default function CompareRoutes() {
               </div>
 
               <div className="mt-auto">
-                <Link href="/explore" className="w-full bg-[#0f2e8a] hover:bg-blue-900 text-white font-bold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-md shadow-blue-900/20">
+                <Link href={`/explore?cities=${cities}&logic=longest`} className="w-full bg-[#0f2e8a] hover:bg-blue-900 text-white font-bold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-md shadow-blue-900/20">
                   Select This Route <FaStar size={12} className="text-yellow-400" />
                 </Link>
               </div>
@@ -154,7 +158,7 @@ export default function CompareRoutes() {
               </div>
 
               <div className="mt-auto">
-                <Link href="/explore" className="w-full bg-[#0f2e8a] hover:bg-blue-900 text-white font-bold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+                <Link href={`/explore?cities=${cities}&logic=attractions`} className="w-full bg-[#0f2e8a] hover:bg-blue-900 text-white font-bold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
                   Select This Route <FaArrowRight size={12} />
                 </Link>
               </div>
@@ -186,5 +190,13 @@ export default function CompareRoutes() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CompareRoutes() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center bg-gray-50">Loading...</div>}>
+      <CompareContent />
+    </Suspense>
   );
 }
